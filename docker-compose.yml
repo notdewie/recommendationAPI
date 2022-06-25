@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  worker:
+    build: worker
+    volumes:
+      - ./worker:/app
+      # - ./log/worker.log:worker.log
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - rabbitmq
+  backend:
+    build: app
+    volumes:
+      - ./app:/app
+      # - ./log/app.log:app.log
+    ports:
+      - 6000:5000
+    environment:
+      FLASK_ENV: development
+    depends_on:
+      - rabbitmq
+  rabbitmq:
+    image: 'rabbitmq:3.6-management-alpine'
+    ports:
+      - '5672:5672'
+      - '15672:15672'

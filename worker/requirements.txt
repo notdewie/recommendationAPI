@@ -1,0 +1,6 @@
+numpy
+pandas
+werkzeug
+pika
+python-dotenv
+requests
