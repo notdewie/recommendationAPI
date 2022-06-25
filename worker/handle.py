@@ -42,7 +42,7 @@ def execute(fileName):
     response = requests.request("POST", url, headers=headers, data=payload)
     
     if response.status_code != 200:   
-        # Nếu xịn hơn  thì nên tách cái lỗi này để có thể retry lại nếu mà server bên ASP.net bị tạch :V
+        # Nên tách cái lỗi này để có thể retry lại nếu mà server bên ASP.net bị tạch
         getLogger().error(f'[{SERVICE}] ERROR: {response.text}')
         return False
     return True
