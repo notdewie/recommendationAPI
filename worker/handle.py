@@ -8,6 +8,8 @@ import time
 from logger import getLogger
 from dotenv import dotenv_values
 
+from requestModel import RequestModel
+
 config = dotenv_values(".env")
 
 SERVICE = "Handle"
@@ -39,13 +41,16 @@ def execute(fileName):
     # fo.close()
 
     # TODO: Call function logic handle
-    recommendation(fo)
-
+    data = recommendation(fo)
     # SEED handle. Sleep 3s send notification to asp.net hook
     url = WEB_HOOK
 
     payload = json.dumps({
-        "data": [1, 2, 3]
+        'data': {
+            'listUserId': data.list_user_id,
+            'listProductId': data.list_product_id,
+            'normalize': data.normailize
+        }
     })
     headers = {
         'Content-Type': 'application/json'
@@ -54,7 +59,7 @@ def execute(fileName):
     response = requests.request("POST", url, headers=headers, data=payload)
 
     if response.status_code != 200:
-        # Nếu xịn hơn  thì nên tách cái lỗi này để có thể retry lại nếu mà server bên ASP.net bị tạch :V
+        #Not handle error yet!!!!!
         getLogger().error(f'[{SERVICE}] ERROR: {response.text}')
         return False
     return True
@@ -88,14 +93,9 @@ def recommendation(upload):
     for row in csvreader:
         rows.append(row)
 
-    getLogger().info(f'Rows...{rows}')
+    Extracted = Export_dataframe_rating(rows)
 
-    # header
-    something = get_datafarame_ratings_base(upload, header)
-
-    Extracted = Export_dataframe_rating(something)
-
-    Converted = Convert_DTFrame(Extracted)
+    Converted, UserIdsArray, ProductIdsArray = Convert_DTFrame(Extracted)
 
     Normalized = Data_Normilization(Converted)
 
@@ -103,20 +103,27 @@ def recommendation(upload):
 
     resultOfSimilarity = Cosine_Similarity(Normalized)
 
-    Rating_Guessing_func(K_neighbors_values, resultOfSimilarity, Normalized)
-
-    getLogger().info(f'Normalized2...{Normalized}')
+    final = Rating_Guessing_func(K_neighbors_values, resultOfSimilarity, Normalized, ProductIdsArray, UserIdsArray)
 
 
-def get_datafarame_ratings_base(text, header):
+    requestModel = RequestModel()
+    requestModel.list_product_id = [int(numeric_string) for numeric_string in ProductIdsArray]
+    requestModel.list_user_id = [int(numeric_string) for numeric_string in UserIdsArray]
+    requestModel.normailize = final.data.tolist()
 
-    ratings = pandas.read_csv(text ,sep=',', names=header)
+    getLogger().info(f'final...{final}')
+    return requestModel
 
-    print(ratings)
 
+def get_datafarame_ratings_base(text, header,rows):
+
+    ratings = pandas.read_csv(text, sep=',', names=header)
+    getLogger().info(f'ratings...{ratings}')
+    # print(ratings)
+    getLogger().info(f'ratings.value...{ratings.values}')
     Y_data = ratings.values
 
-    return Y_data
+    return header.append(rows)
 
 
 def Converted(UserIdsArray, ProductIdsArray, Extracted):
@@ -135,29 +142,29 @@ def Converted(UserIdsArray, ProductIdsArray, Extracted):
 
 def Convert_DTFrame(extracted):
 
-    # Create User IDs array
+  #Create User IDs array
 
-    UserIdsArray = []
+  UserIdsArray = []
 
-    for ratingValue in extracted[1:]:
-        if(Check_Exist_In_Array(UserIdsArray, ratingValue[0]) == False):
-            UserIdsArray.append(ratingValue[0])
+  for ratingValue in extracted[1:]:
+    if(Check_Exist_In_Array(UserIdsArray, ratingValue[0]) == False):
+      UserIdsArray.append(ratingValue[0])
 
-    print(UserIdsArray)
-    print(len(UserIdsArray))
+  print(UserIdsArray)
+  print(len(UserIdsArray))
 
-    # Create User IDs array
+  #Create User IDs array
 
-    ProductIdsArray = []
+  ProductIdsArray = []
 
-    for ratingValue in extracted[1:]:
-        if(Check_Exist_In_Array(ProductIdsArray, ratingValue[1]) == False):
-            ProductIdsArray.append(ratingValue[1])
+  for ratingValue in extracted[1:]:
+    if(Check_Exist_In_Array(ProductIdsArray, ratingValue[1]) == False):
+      ProductIdsArray.append(ratingValue[1])
 
-    print(ProductIdsArray)
-    print(len(ProductIdsArray))
+  print(ProductIdsArray)
+  print(len(ProductIdsArray))
 
-    return Converted(UserIdsArray, ProductIdsArray, extracted)
+  return Converted(UserIdsArray, ProductIdsArray, extracted), UserIdsArray, ProductIdsArray
 
 
 def Data_Normilization(Converted):
@@ -173,7 +180,7 @@ def Data_Normilization(Converted):
         for c in r:
 
             if(c != 'x'):
-                sumArr[y] += c
+                sumArr[y] += float(c)
                 totalArr[y] += 1
             y += 1
         x += 1
@@ -198,8 +205,7 @@ def Data_Normilization(Converted):
     for xIndex, r in enumerate(Converted):
         for yIndex, c in enumerate(r):
             if (c != 'x'):
-                Converted[xIndex][yIndex] = Converted[xIndex][yIndex] - \
-                    averagePointArray[yIndex]
+                Converted[xIndex][yIndex] = float(Converted[xIndex][yIndex]) - float(averagePointArray[yIndex])
             else:
                 Converted[xIndex][yIndex] = 0
 
@@ -293,21 +299,55 @@ def Cosine_Similarity(Normalized_Matrix):
     return toNpArray
 
 
-def KNN_Calculate(K_Neighbors):
-    return 1
+def KNN_Calculate(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Result_Matrix, Item_Index, User_Index, ProductIdsArray,UserIdsArray):
+  
+  #step 1
+
+  UsersToCalculate = Normalized_Result_Matrix[Item_Index]
+
+  #step 2
+
+  Id_Array = []
+  Value_Array = []
 
 
-def Rating_Guessing_func(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Result_Matrix):
+  for k in range(K_Neighbors):
+    valueToAdd = -10000
+    idToAdd = -1
+    for Index, c in enumerate(UsersToCalculate):
+      if ((Index != User_Index) & (valueToAdd < Cosine_Similarity_Matrix[User_Index][Index]) & IndexExist(Id_Array, Index) & (UsersToCalculate[Index] != 0)):
+          valueToAdd = Cosine_Similarity_Matrix[User_Index][Index]
+          idToAdd = Index
+          
+    if(idToAdd != -1):
+      Value_Array.append(valueToAdd)
+      Id_Array.append(idToAdd)
 
-    result_Matrix = Normalized_Result_Matrix
+    tusoKnn = 0
+    mausoKnn = 0 
 
-    for xIndex, r in enumerate(result_Matrix):
-        for yIndex, c in enumerate(r):
-            if(c == 0):
-                result_Matrix[xIndex][yIndex] = KNN_Calculate(K_Neighbors)
+    for Index, k in enumerate(Id_Array):
+      tusoKnn += Value_Array[Index] * UsersToCalculate[k]
+      mausoKnn += abs(Value_Array[Index])
 
-    print(result_Matrix)
-    return result_Matrix
+    result = tusoKnn / mausoKnn
+  return result
+
+
+def Rating_Guessing_func(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Result_Matrix, ProductIdsArray, UserIdsArray):
+  print(ProductIdsArray)
+  print(UserIdsArray)
+
+  result_Matrix = Normalized_Result_Matrix
+
+#Item = xIndex, User = yIndex
+
+  for xIndex, r in enumerate(result_Matrix):
+    for yIndex, c in enumerate(r): 
+      if( c == 0 ):
+        result_Matrix[xIndex][yIndex] = '{0:.10f}'.format(KNN_Calculate(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Result_Matrix,xIndex ,yIndex, ProductIdsArray, UserIdsArray))
+
+  return result_Matrix
 
 
 def Export_dataframe_rating(dtframe):
@@ -324,3 +364,9 @@ def Check_Exist_In_Array(Array, Value):
         if (element == Value):
             return True
     return False
+
+def IndexExist(Array, Index):
+    for x in Array: 
+        if (x == Index):
+            return False 
+    return True
