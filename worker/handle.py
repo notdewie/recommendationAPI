@@ -8,28 +8,40 @@ import time
 from logger import getLogger
 from dotenv import dotenv_values
 
-config = dotenv_values(".env")  
+config = dotenv_values(".env")
 
-SERVICE="Handle"
-WEB_HOOK=config.get("WEB_HOOK_URL")
+SERVICE = "Handle"
+WEB_HOOK = config.get("WEB_HOOK_URL")
+UPLOAD_PATH = config.get("PATH_UPLOAD_FOLDER")
 np.set_printoptions(linewidth=np.inf)
 DontShowDebug = False
 K_neighbors_values = 2
 
 
 def execute(fileName):
-    
-    ### SEED Handle. Sleep 3s send notification to asp.net hook
-   
-    getLogger().info(f'[{SERVICE}] In-progressing...')
-    getLogger().info(f'[{SERVICE}] Handling path file {fileName}...')
-    
-    # TODO: Call function logic handle
-    # recommendation(upload):
-    
-    # SEED handle. Sleep 3s send notification to asp.net hook
-    time.sleep(10)
 
+    # SEED Handle. Sleep 5s send notification to asp.net hook
+
+    pathFile = UPLOAD_PATH+fileName
+    getLogger().info(f'[{SERVICE}] In-progressing...')
+    getLogger().info(f'[{SERVICE}] Handling path file {pathFile}...')
+    
+    # time.sleep(5)
+
+
+    fo = open(pathFile, "r")
+    getLogger().info(f'Name of the file: {fo.name}')
+
+    # line = fo.read(100)
+    # getLogger().info("Read Line: " + line)
+
+    # Close opened file
+    # fo.close()
+
+    # TODO: Call function logic handle
+    recommendation(fo)
+
+    # SEED handle. Sleep 3s send notification to asp.net hook
     url = WEB_HOOK
 
     payload = json.dumps({
@@ -40,26 +52,26 @@ def execute(fileName):
     }
 
     response = requests.request("POST", url, headers=headers, data=payload)
-    
-    if response.status_code != 200:   
-        # Nên tách cái lỗi này để có thể retry lại nếu mà server bên ASP.net bị tạch
+
+    if response.status_code != 200:
+        # Nếu xịn hơn  thì nên tách cái lỗi này để có thể retry lại nếu mà server bên ASP.net bị tạch :V
         getLogger().error(f'[{SERVICE}] ERROR: {response.text}')
         return False
     return True
-    
-    ###
-    
 
-# TODO: Do logic 
-    
+    ###
+
+
+# TODO: Do logic
+
 def recommendation(upload):
     # DontShowDebug = False
     # Enviroment variables
     K_neighbors_values = 2
 
-    Ecom_Data = open(next(iter(upload)))
+    # Ecom_Data = open(next(iter(upload)))
 
-    type(upload)
+    # type(upload)
 
     csvreader = csv.reader(upload)
 
@@ -67,7 +79,7 @@ def recommendation(upload):
 
     header = []
     header = next(csvreader)
-    header
+    getLogger().info(header)
 
     # Extract the records
 
@@ -76,38 +88,36 @@ def recommendation(upload):
     for row in csvreader:
         rows.append(row)
 
-    print(rows)
+    getLogger().info(f'Rows...{rows}')
 
-    header
-
-    something = get_datafarame_ratings_base(next(iter(upload)))
+    # header
+    something = get_datafarame_ratings_base(upload, header)
 
     Extracted = Export_dataframe_rating(something)
 
     Converted = Convert_DTFrame(Extracted)
 
-    """## Normalized result"""
-
     Normalized = Data_Normilization(Converted)
 
-    print(Normalized)
-    logger.error('"%s"', Normalized)
-
-    """## Cosine Result"""
+    getLogger().info(f'Normalized...{Normalized}')
 
     resultOfSimilarity = Cosine_Similarity(Normalized)
 
     Rating_Guessing_func(K_neighbors_values, resultOfSimilarity, Normalized)
 
-def get_datafarame_ratings_base(text):
+    getLogger().info(f'Normalized2...{Normalized}')
 
-    ratings = pandas.read_csv(text, sep=',')
+
+def get_datafarame_ratings_base(text, header):
+
+    ratings = pandas.read_csv(text ,sep=',', names=header)
 
     print(ratings)
 
     Y_data = ratings.values
 
     return Y_data
+
 
 def Converted(UserIdsArray, ProductIdsArray, Extracted):
     convert = [['x' for i in range(len(UserIdsArray))]
@@ -121,6 +131,7 @@ def Converted(UserIdsArray, ProductIdsArray, Extracted):
     print(convert)
 
     return convert
+
 
 def Convert_DTFrame(extracted):
 
@@ -147,6 +158,7 @@ def Convert_DTFrame(extracted):
     print(len(ProductIdsArray))
 
     return Converted(UserIdsArray, ProductIdsArray, extracted)
+
 
 def Data_Normilization(Converted):
 
@@ -197,6 +209,7 @@ def Data_Normilization(Converted):
     print(C)
 
     return C
+
 
 def Cosine_Fomular(x, y, Calculated_Matrix):
     row, col = Calculated_Matrix.shape
@@ -252,6 +265,7 @@ def Cosine_Fomular(x, y, Calculated_Matrix):
 
     return Cosine
 
+
 def Cosine_Similarity(Normalized_Matrix):
     row, col = Normalized_Matrix.shape
 
@@ -278,8 +292,10 @@ def Cosine_Similarity(Normalized_Matrix):
 
     return toNpArray
 
+
 def KNN_Calculate(K_Neighbors):
     return 1
+
 
 def Rating_Guessing_func(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Result_Matrix):
 
@@ -293,14 +309,15 @@ def Rating_Guessing_func(K_Neighbors, Cosine_Similarity_Matrix, Normalized_Resul
     print(result_Matrix)
     return result_Matrix
 
+
 def Export_dataframe_rating(dtframe):
     r_cols = [['UserId', 'RatedProductId', 'RatingScore']]
     for row in dtframe:
         r_cols.append([row[4], row[2], row[1]])
 
-    print(r_cols)
-
+    getLogger().info(f'Export_dataframe_rating...{r_cols}')
     return r_cols
+
 
 def Check_Exist_In_Array(Array, Value):
     for element in Array:

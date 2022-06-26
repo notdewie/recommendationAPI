@@ -21,7 +21,7 @@ logging.basicConfig(filename="app.log",
 logger = logging.getLogger('app_logger')
 logger.setLevel(logging.DEBUG)
 
-uploads_dir = os.path.join(app.instance_path, 'uploads')
+uploads_dir = os.path.join(app.root_path, 'uploads')
 
 try:
     os.makedirs(uploads_dir)

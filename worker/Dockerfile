@@ -1,7 +1,7 @@
 FROM python:3.7-slim
-WORKDIR /app
+WORKDIR /app/worker
 
-COPY requirements.txt requirements.txt
+COPY worker/requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 
-CMD ["python3", "app.py"]
+CMD python3 app.py
